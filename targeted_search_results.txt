@@ -1,0 +1,56 @@
+
+==================================
+Matches for "checkNewsBlock":
+==================================
+Line 135: Reason: Thesis Invalidation Score ${item.score}%`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}}});const openPn
+Line 216: function checkNewsBlock(windowMinutes: number = 30) {
+Line 237: }__name(checkNewsBlock,"checkNewsBlock");function checkSessionBoundaryBlock(windowMinutes=30){const now=new Date;const currentMinutesSinceMidnight=now
+Line 369: Error: ${errMsg}`,deliveryStatus:"FAILED",chatId:chatIdToUse,errorLog:errMsg};state.telegramAlerts.unshift(failedAlert);return res.json({success:false
+
+==================================
+Matches for "preNewsAutoCloseEnabled":
+==================================
+Line 1: var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});import express from"express";import 
+Line 6: if (state.config.preNewsAutoCloseEnabled === true && Array.isArray(state.news)) {
+Line 361: *Would you like to deploy this strategy blueprint into your active environment?*`,proposed:true,strategy:{name,description,pattern,entryRules,slTpRule
+
+==================================
+Matches for "pyramidingEnabled":
+==================================
+Line 1: var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});import express from"express";import 
+Line 237: }__name(checkNewsBlock,"checkNewsBlock");function checkSessionBoundaryBlock(windowMinutes=30){const now=new Date;const currentMinutesSinceMidnight=now
+Line 361: *Would you like to deploy this strategy blueprint into your active environment?*`,proposed:true,strategy:{name,description,pattern,entryRules,slTpRule
+
+==================================
+Matches for "calculateBaseLotSize":
+==================================
+Line 1: var __defProp=Object.defineProperty;var __name=(target,value)=>__defProp(target,"name",{value,configurable:true});import express from"express";import 
+Line 237: }__name(checkNewsBlock,"checkNewsBlock");function checkSessionBoundaryBlock(windowMinutes=30){const now=new Date;const currentMinutesSinceMidnight=now
+Line 247: \u{1F916} System Status: Live Synced via Bot Bridge`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}}__name(execu
+Line 369: Error: ${errMsg}`,deliveryStatus:"FAILED",chatId:chatIdToUse,errorLog:errMsg};state.telegramAlerts.unshift(failedAlert);return res.json({success:false
+
+==================================
+Matches for "isDuplicateSignalOrTrade":
+==================================
+Line 135: Reason: Thesis Invalidation Score ${item.score}%`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}}});const openPn
+Line 237: }__name(checkNewsBlock,"checkNewsBlock");function checkSessionBoundaryBlock(windowMinutes=30){const now=new Date;const currentMinutesSinceMidnight=now
+Line 247: \u{1F916} System Status: Live Synced via Bot Bridge`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}}__name(execu
+Line 305: Auto-Renewal: ON`,deliveryStatus:"SENT",chatId:"@QuantTerminal_Alerts"})}saveState();res.json({success:true,tenant})});app.get("/api/admin/pricing",(r
+Line 316: }`;const response=await client.models.generateContent({model:"gemini-3.5-flash",contents:prompt});const textResult=response.text||"";const jsonMatch=t
+
+==================================
+Matches for "app.post":
+==================================
+Line 264: Strategy: ${trade.strategyName}`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}}}__name(closeTrade,"closeTrade")
+Line 270: Status: Active \u2705`,deliveryStatus:"SENT",chatId:"@QuantTerminal_Alerts"});saveState();res.json({success:true,tenant:t})});async function getOrCrea
+Line 288: Status: Active`,deliveryStatus:"SENT",chatId:"@QuantTerminal_Alerts"});saveState()}break}}res.json({received:true})}catch(error){console.error("[Strip
+Line 305: Auto-Renewal: ON`,deliveryStatus:"SENT",chatId:"@QuantTerminal_Alerts"})}saveState();res.json({success:true,tenant})});app.get("/api/admin/pricing",(r
+Line 316: }`;const response=await client.models.generateContent({model:"gemini-3.5-flash",contents:prompt});const textResult=response.text||"";const jsonMatch=t
+Line 321: Price: @${entryPrice}`,deliveryStatus:"PENDING",chatId:"@QuantTerminal_Alerts"};pushTelegramAlert(tgAlert)}saveState();if(firebaseEnabled&&db){saveSta
+Line 361: *Would you like to deploy this strategy blueprint into your active environment?*`,proposed:true,strategy:{name,description,pattern,entryRules,slTpRule
+Line 369: Error: ${errMsg}`,deliveryStatus:"FAILED",chatId:chatIdToUse,errorLog:errMsg};state.telegramAlerts.unshift(failedAlert);return res.json({success:false
+Line 379: - **Risk Shield Directive**: Keep standard volatility buffers active for major USD majors (EURUSD, GBPUSD) and Gold to defend against expansion spikes
+Line 410: - **Mental Drawdown Correction**: Protect capital by waiting for strict support confluence on higher timeframes.`;const result=await generateContentWi
+Line 421: - **Parameter Adjustment**: Standard optimization suggests a 1.2x increase on active threshold bounds to filter noise.`;const result=await generateCon
+Line 446: \u23F0 Timeframe: H1 (TRENDING_BULL)`}})}}}__name(syncLivePrices,"syncLivePrices");app.get("/api/ml/telemetry",(req,res)=>{const closed=state.trades.f
+Line 469: Identify similar conditions, identify failures (e.g. SL hits in low-volume or news blackouts), and supply 2 to 4 recommended validations to adjust our

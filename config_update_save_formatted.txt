@@ -1,0 +1,76 @@
+TrailingLockMultiplier
+}
+=req.body;
+const targetEnabled=directBrokerEnabled!==void 0?!!directBrokerEnabled:state.config.directBrokerEnabled;
+if(targetEnabled){
+const checkServer=directBrokerServer!==void 0?directBrokerServer:state.config.directBrokerServer||"MetaQuotes-Demo";
+const checkLogin=directBrokerLogin!==void 0?directBrokerLogin:state.config.directBrokerLogin||"";
+const checkPass=directBrokerPassword!==void 0?directBrokerPassword:state.config.directBrokerPassword||"";
+if(!checkServer.trim()||checkServer.trim().length<3){
+return res.status(400).json({
+error:`MetaTrader 5 Direct Auth Error: Invalid trading server name "${
+checkServer
+}
+". Please provide a valid broker server name.`
+}
+)
+}
+if(!checkLogin.trim()){
+return res.status(400).json({
+error:"MetaTrader 5 Direct Auth Error: Account Login ID cannot be empty."
+}
+)
+}
+if(!/^\d+$/.test(checkLogin.trim())){
+const failLog=`[Direct Broker Link] CONNECTION FAILED: Authentication failed on server [${
+checkServer
+}
+]. Account Login ID "${
+checkLogin
+}
+" is non-numeric.`;
+if(!state.config.directBrokerLogs){
+state.config.directBrokerLogs=[]
+}
+state.config.directBrokerLogs.unshift(failLog);
+state.mt5Config.logs.unshift(failLog);
+state.config.directBrokerEnabled=false;
+state.config.directBrokerConnected=false;
+saveState();
+return res.status(400).json({
+error:`MetaTrader 5 Direct Auth Error: Account Login ID "${
+checkLogin
+}
+" must be numeric digits only (your numeric MT5 trading account number).`
+}
+)
+}
+if(!checkPass.trim()||checkPass.trim().length<4){
+return res.status(400).json({
+error:"MetaTrader 5 Direct Auth Error: Trading Password must be at least 4 characters long."
+}
+)
+}
+
+}
+if(directBrokerEnabled!==void 0){
+state.config.directBrokerEnabled=!!directBrokerEnabled;
+state.config.directBrokerConnected=!!directBrokerEnabled;
+state.config.mt5BridgeEnabled=!!directBrokerEnabled;
+if(!!directBrokerEnabled){
+const broker=directBrokerServer||state.config.directBrokerServer||"MetaQuotes-Demo";
+const login2=directBrokerLogin||state.config.directBrokerLogin||"";
+const cleanBrokerHost=broker.toLowerCase().replace(/[^a-z0-9]/g,"");
+const wsLog1=`[Direct WebSocket Gateway] Establishing secure WebSocket pipe to wss://${
+cleanBrokerHost
+}
+.metaquotes-cloud.net:443/api/v2...`;
+const wsLog2=`[Direct WebSocket Gateway] WebSocket handshaking completed successfully. Sending MT5 client registration packets.`;
+const wsLog3=`[Direct WebSocket Gateway] AUTHENTICATED: Client protocol registered under MT5 Account login #${
+login2
+}
+ on ${
+broker
+}
+.`;
+const infoLog=`[Direct Broker Link] ONLINE: Direct MT5 a

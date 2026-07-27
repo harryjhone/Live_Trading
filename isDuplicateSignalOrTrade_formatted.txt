@@ -1,0 +1,90 @@
+function isDuplicateSignalOrTrade(strategyId,symbol,timeframe,excludeSignalId){
+if(!state||!state.config)return{
+duplicate:false
+}
+;
+const scalingEnabled=!!state.config.itmeScalingEnabled||!!state.config.pyramidingEnabled;
+if(scalingEnabled){
+const hasPendingMirrorOrder=state.mt5Config&&state.mt5Config.mirrorActivity&&state.mt5Config.mirrorActivity.some(m=>m.symbol===symbol&&m.strategyId===strategyId&&m.action==="OPEN"&&(m.status==="PENDING"||m.status==="SENT"));
+if(hasPendingMirrorOrder){
+return{
+duplicate:true,reason:"Duplicate MT5 Order Pending"
+}
+
+}
+const twoMinutesAgo=Date.now()-2*60*1e3;
+const hasRecentSignal=state.signals&&state.signals.some(s=>s.symbol===symbol&&s.strategyId===strategyId&&s.timeframe===timeframe&&s.id!==excludeSignalId&&new Date(s.time).getTime()>=twoMinutesAgo);
+if(hasRecentSignal){
+return{
+duplicate:true,reason:"Duplicate Spam Cooldown"
+}
+
+}
+
+}
+if(state.trades&&state.trades.length>0){
+const hasActivePosition=state.trades.some(t=>t.status==="OPEN"&&t.strategyId===strategyId&&t.symbol===symbol&&(t.timeframe||"M15")===timeframe);
+if(hasActivePosition){
+return{
+duplicate:true,reason:"Duplicate Trade Prevention"
+}
+
+}
+
+}
+if(state.retestCandidates&&state.retestCandidates.length>0){
+const hasPendingRetestCandidate=state.retestCandidates.some(c=>c.symbol===symbol&&c.strategyId===strategyId&&c.timeframe===timeframe&&(c.status==="WAITING_CANDLE_CLOSE"||c.status==="WAITING_RETEST"));
+if(hasPendingRetestCandidate){
+return{
+duplicate:true,reason:"Duplicate Trade Prevention"
+}
+
+}
+
+}
+if(state.mt5Config&&state.mt5Config.mirrorActivity&&state.mt5Config.mirrorActivity.length>0){
+const hasPendingMirrorOrder=state.mt5Config.mirrorActivity.some(m=>m.symbol===symbol&&m.strategyId===strategyId&&(m.timeframe||"M15")===timeframe&&m.action==="OPEN"&&(m.status==="PENDING"||m.status==="SENT"));
+if(hasPendingMirrorOrder){
+return{
+duplicate:true,reason:"Duplicate Trade Prevention"
+}
+
+}
+
+}
+if(state.signals&&state.signals.length>0){
+const fiveMinutesAgo=Date.now()-5*60*1e3;
+const hasRecentlyTriggeredSignal=state.signals.some(s=>s.symbol===symbol&&s.strategyId===strategyId&&s.timeframe===timeframe&&s.id!==excludeSignalId&&new Date(s.time).getTime()>=fiveMinutesAgo);
+if(hasRecentlyTriggeredSignal){
+return{
+duplicate:true,reason:"Duplicate Trade Prevention"
+}
+
+}
+
+}
+return{
+duplicate:false
+}
+
+}
+__name(isDuplicateSignalOrTrade,"isDuplicateSignalOrTrade");
+function getAdaptiveRulesAndConfigs(symbol,strategyId){
+const isAdaptive=state?.config?!!state.config.adaptiveSafeguardsEnabled:false;
+let sessionLockMinutes=30;
+let newsLockMinutes=30;
+let spikeMultiplier=3.5;
+let cooldownMinutes=5;
+let minThesisConfluencePercent=Math.max(15,95-(state?.config?.itmeThreshold||85));
+const rulesApplied=[];
+let relaxationLevel=0;
+if(isAdaptive&&state){
+rulesApplied.push("ASGO: Dynamic Optimization Enabled");
+relaxationLevel=15;
+const closedTrades=state.trades?state.trades.filter(t=>t.status==="CLOSED"&&t.strategyId===strategyId):[];
+let winRate=.5;
+if(closedTrades.length>=3){
+const wins=closedTrades.filter(t=>t.pnl>0).length;
+winRate=wins/closedTrades.length
+}
+if

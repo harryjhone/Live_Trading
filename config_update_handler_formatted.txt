@@ -1,0 +1,43 @@
+/api/config/update",(req,res)=>{
+const{
+balance,riskPerTrade,riskMode,maxDailyDrawdown,autoTradeEnabled,mt5BridgeEnabled,server,login,password,port,brokerSuffix,enabledPairs,displayTimeframe,executionTimeframes,scannerTargetMode,lotSize,leverage,activeStrategies,tradingDays,telegramAlertsEnabled,botPaused,telegramReceiverToken,telegramReceiverChatId,telegramReceiverActive,telegramAutoMirror,activeOptimizations,enabledBlockers,itmeEnabled,phase1Enabled,exitEngineMode,itmeFiveCandleRuleEnabled,itmeThreshold,itmeAllowReversals,itmeMinBarsHold,itmeFilterPullbacks,itmeWeightStructure,itmeWeightPriceAction,itmeWeightMomentum,itmeWeightVolume,itmeWeightVolatility,itmeScalingEnabled,pyramidingEnabled,itmeScaleInThreshold,itmeScaleInPercent,itmeMaxScaleInCount,itmeScaleOutThreshold1,itmeScaleOutThreshold2,itmeScaleOutPercent,adaptiveSafeguardsEnabled,safeguardConfluenceMode,profitLockTightness,virtualSlTpEnabled,directBrokerEnabled,directBrokerServer,directBrokerLogin,directBrokerPassword,directBrokerAutoExecute,directBrokerConnected,directBrokerRouteToEA,directBrokerSuffix,executionMethod,preNewsAutoCloseEnabled,preNewsAutoCloseMinutes,preNewsAutoClosePct,indexAtrTrailingLockEnabled,indexAtrTrailingLockMultiplier
+}
+=req.body;
+const targetEnabled=directBrokerEnabled!==void 0?!!directBrokerEnabled:state.config.directBrokerEnabled;
+if(targetEnabled){
+const checkServer=directBrokerServer!==void 0?directBrokerServer:state.config.directBrokerServer||"MetaQuotes-Demo";
+const checkLogin=directBrokerLogin!==void 0?directBrokerLogin:state.config.directBrokerLogin||"";
+const checkPass=directBrokerPassword!==void 0?directBrokerPassword:state.config.directBrokerPassword||"";
+if(!checkServer.trim()||checkServer.trim().length<3){
+return res.status(400).json({
+error:`MetaTrader 5 Direct Auth Error: Invalid trading server name "${
+checkServer
+}
+". Please provide a valid broker server name.`
+}
+)
+}
+if(!checkLogin.trim()){
+return res.status(400).json({
+error:"MetaTrader 5 Direct Auth Error: Account Login ID cannot be empty."
+}
+)
+}
+if(!/^\d+$/.test(checkLogin.trim())){
+const failLog=`[Direct Broker Link] CONNECTION FAILED: Authentication failed on server [${
+checkServer
+}
+]. Account Login ID "${
+checkLogin
+}
+" is non-numeric.`;
+if(!state.config.directBrokerLogs){
+state.config.directBrokerLogs=[]
+}
+state.config.directBrokerLogs.unshift(failLog);
+state.mt5Config.logs.unshift(failLog);
+state.config.directBrokerEnabled=false;
+state.config.directBrokerConnected=false;
+saveState();
+return res.status(400).json({
+error:`MetaTrader 5 

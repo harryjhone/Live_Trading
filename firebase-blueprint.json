@@ -1,0 +1,177 @@
+{
+  "entities": {
+    "Metadata": {
+      "title": "Global State Metadata",
+      "description": "Metadata for active tenant, pricing, and server configurations.",
+      "type": "object",
+      "properties": {
+        "activeTenantId": {
+          "type": "string",
+          "description": "Refers to current active user tenant."
+        },
+        "pricingConfig": {
+          "type": "object",
+          "description": "Custom billing options and pricing plan benefits."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Server UTC timestamp of the last write."
+        }
+      },
+      "required": ["activeTenantId", "pricingConfig"]
+    },
+    "Tenant": {
+      "title": "Tenant Workspace State",
+      "description": "Details, configuration, and simulation state for a dedicated operator workspace.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the tenant."
+        },
+        "name": {
+          "type": "string",
+          "description": "Full name of workspace operator."
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified email of workspace operator."
+        },
+        "username": {
+          "type": "string",
+          "description": "Username used for authentication."
+        },
+        "password": {
+          "type": "string",
+          "description": "Authentication password."
+        },
+        "passcode": {
+          "type": "string",
+          "description": "Pin/passcode override."
+        },
+        "tier": {
+          "type": "string",
+          "description": "Membership plan tier."
+        },
+        "status": {
+          "type": "string",
+          "description": "Active, Expired, or Suspended billing status."
+        },
+        "price": {
+          "type": "number",
+          "description": "Current active billing price rate."
+        },
+        "nextBillingDate": {
+          "type": "string",
+          "description": "Date of subsequent renew transaction."
+        },
+        "limits": {
+          "type": "object",
+          "description": "Safety parameters defining limits."
+        },
+        "state": {
+          "type": "object",
+          "description": "Nested object representing App Configuration, Strategies list, trades logs, history, news setup, and news analysis."
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Server UTC timestamp of the last write."
+        }
+      },
+      "required": ["id", "name", "email", "username", "password", "tier", "status", "state"]
+    },
+    "DemoAccessLog": {
+      "title": "Demo Account Access Heartbeat Log",
+      "description": "Information about a specific user testing demo environments, limits, and heartbeats.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the log entry."
+        },
+        "tenantId": {
+          "type": "string",
+          "description": "Operator tenant ID corresponding to this session."
+        },
+        "ip": {
+          "type": "string",
+          "description": "Session client IP address."
+        },
+        "canvasHash": {
+          "type": "string",
+          "description": "Browser environment canvas fingerprint hash."
+        },
+        "userAgent": {
+          "type": "string",
+          "description": "Browser user agent identifier headers."
+        },
+        "screen": {
+          "type": "string",
+          "description": "User desktop screen geometry resolution bounds."
+        },
+        "timezone": {
+          "type": "string",
+          "description": "Client timezone mapping identifier."
+        },
+        "cores": {
+          "type": "number",
+          "description": "Device physical central processing unit hardware core count."
+        },
+        "memory": {
+          "type": "number",
+          "description": "Total device physical ram specifications index in gigabytes."
+        },
+        "deviceId": {
+          "type": "string",
+          "description": "Client-generated persistent device configuration identifier."
+        },
+        "date": {
+          "type": "string",
+          "description": "Specific calendar day format of log entry."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Standard timestamp recording instant of log registration."
+        },
+        "durationMs": {
+          "type": "number",
+          "description": "Accumulated active session runtime in milliseconds."
+        },
+        "lastHeartbeatAt": {
+          "type": "number",
+          "description": "Timestamp indicating instant of last client ping."
+        }
+      },
+      "required": [
+        "id",
+        "tenantId",
+        "ip",
+        "canvasHash",
+        "userAgent",
+        "screen",
+        "timezone",
+        "cores",
+        "memory",
+        "deviceId",
+        "date",
+        "createdAt",
+        "durationMs",
+        "lastHeartbeatAt"
+      ]
+    }
+  },
+  "firestore": {
+    "global_state/metadata": {
+      "schema": "Metadata",
+      "description": "Global settings and subscription options."
+    },
+    "tenants/{tenantId}": {
+      "schema": "Tenant",
+      "description": "Multi-tenant workspaces containing trade simulation config and limits."
+    },
+    "demo_access_logs/{logId}": {
+      "schema": "DemoAccessLog",
+      "description": "Historical audit telemetry tracking demo limit allocations daily."
+    }
+  }
+}

@@ -1,0 +1,109 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default safety catch-all deny rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // Detailed static validation blueprint for Metadata entity
+    function isValidMetadata(data) {
+      return data.keys().hasAll(['activeTenantId', 'pricingConfig'])
+        && data.activeTenantId is string
+        && data.activeTenantId.size() <= 128
+        && data.pricingConfig is map;
+    }
+
+    // Detailed static validation blueprint for Tenant workspace entity
+    function isValidTenant(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'username', 'password', 'tier', 'status', 'state'])
+        && data.id is string
+        && data.id.size() <= 128
+        && data.name is string
+        && data.name.size() <= 200
+        && data.email is string
+        && data.email.size() <= 200
+        && data.username is string
+        && data.username.size() <= 128
+        && data.password is string
+        && data.password.size() <= 128
+        && data.tier is string
+        && data.tier.size() <= 50
+        && data.status is string
+        && data.status.size() <= 50
+        && data.state is map;
+    }
+
+    // Detailed static validation blueprint for Demo Access Log entity
+    function isValidDemoAccessLog(data) {
+      return data.keys().hasAll(['id', 'tenantId', 'ip', 'canvasHash', 'userAgent', 'screen', 'timezone', 'cores', 'memory', 'deviceId', 'date', 'createdAt', 'durationMs', 'lastHeartbeatAt'])
+        && data.id is string
+        && data.id.size() <= 128
+        && data.tenantId is string
+        && data.tenantId.size() <= 128
+        && data.ip is string
+        && data.ip.size() <= 128
+        && data.canvasHash is string
+        && data.canvasHash.size() <= 128
+        && data.userAgent is string
+        && data.userAgent.size() <= 1000
+        && data.screen is string
+        && data.screen.size() <= 128
+        && data.timezone is string
+        && data.timezone.size() <= 128
+        && data.cores is number
+        && data.memory is number
+        && data.deviceId is string
+        && data.deviceId.size() <= 256
+        && data.date is string
+        && data.date.size() <= 50
+        && data.createdAt is string
+        && data.createdAt.size() <= 128
+        && data.durationMs is number
+        && data.lastHeartbeatAt is number;
+    }
+
+    // Global settings metadata
+    match /global_state/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId) && isValidMetadata(incoming());
+    }
+
+    match /global_state_dev/{docId} {
+      allow read: if true;
+      allow write: if isValidId(docId) && isValidMetadata(incoming());
+    }
+
+    // Multi-tenant workspaces
+    match /tenants/{tenantId} {
+      allow read: if true;
+      allow write: if isValidId(tenantId) && isValidTenant(incoming());
+    }
+
+    match /tenants_dev/{tenantId} {
+      allow read: if true;
+      allow write: if isValidId(tenantId) && isValidTenant(incoming());
+    }
+
+    // Demo account access heartbeats
+    match /demo_access_logs/{logId} {
+      allow read, delete: if true;
+      allow write: if isValidId(logId) && isValidDemoAccessLog(incoming());
+    }
+
+    match /demo_access_logs_dev/{logId} {
+      allow read, delete: if true;
+      allow write: if isValidId(logId) && isValidDemoAccessLog(incoming());
+    }
+  }
+}

@@ -1,0 +1,336 @@
+Provide a brief, high-level analysis of this strategy's performance over the 6 months period. In exactly 3 bullet points, formulate distinct professional recommendation directives (ranging from volatility filters to risk scaling parameters) to mitigate whipsaws and improve metrics. Keep explanations dense in professional trading terminology. Do not output code.`;
+const response=await client.models.generateContent({
+model:"gemini-3.5-flash",contents:prompt
+}
+);
+res.json({
+text:response.text||"No AI feedback synthesized.",keyStatus:"active"
+}
+)
+}
+catch(err){
+console.error("Gemini backtest analysis failure: ",err);
+res.status(500).json({
+error:"Failed to generate report via Gemini: "+err.message
+}
+)
+}
+
+}
+);
+async function syncLivePrices(){
+console.log("[Price Engine] Bootstrapping live prices from public APIs...");
+let syncedAny=false;
+try{
+const btcRes=await fetchWithTimeout("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",{
+headers:{
+"User-Agent":"Mozilla/5.0"
+}
+
+}
+);
+if(btcRes.ok){
+const btcData=await btcRes.json();
+if(btcData&&btcData.price){
+const val=parseFloat(btcData.price);
+if(!isNaN(val)&&val>3e4){
+BASE_PRICES.BTCUSD=val;
+syncedAny=true;
+console.log(`[Price Engine] Live BTCUSD matched: $${
+BASE_PRICES.BTCUSD
+}
+`)
+}
+
+}
+
+}
+
+}
+catch(err){
+console.error("[Price Engine] Failed to fetch live BTCUSD:",err)
+}
+try{
+const goldRes=await fetchWithTimeout("https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT",{
+headers:{
+"User-Agent":"Mozilla/5.0"
+}
+
+}
+);
+if(goldRes.ok){
+const goldData=await goldRes.json();
+if(goldData&&goldData.price){
+const val=parseFloat(goldData.price);
+if(!isNaN(val)&&val>1e3){
+BASE_PRICES.XAUUSD=val;
+syncedAny=true;
+console.log(`[Price Engine] Live XAUUSD matched (via PAXG): $${
+BASE_PRICES.XAUUSD
+}
+`)
+}
+
+}
+
+}
+
+}
+catch(err){
+console.error("[Price Engine] Failed to fetch live XAUUSD:",err)
+}
+try{
+const erRes=await fetchWithTimeout("https://open.er-api.com/v6/latest/USD",{
+headers:{
+"User-Agent":"Mozilla/5.0"
+}
+
+}
+);
+if(erRes.ok){
+const erData=await erRes.json();
+if(erData&&erData.rates){
+if(erData.rates.EUR){
+const val=Number((1/erData.rates.EUR).toFixed(4));
+if(!isNaN(val)&&val>.5&&val<2){
+BASE_PRICES.EURUSD=val;
+syncedAny=true;
+console.log(`[Price Engine] Live EURUSD matched: ${
+BASE_PRICES.EURUSD
+}
+`)
+}
+
+}
+if(erData.rates.GBP){
+const val=Number((1/erData.rates.GBP).toFixed(4));
+if(!isNaN(val)&&val>.5&&val<2){
+BASE_PRICES.GBPUSD=val;
+syncedAny=true;
+console.log(`[Price Engine] Live GBPUSD matched: ${
+BASE_PRICES.GBPUSD
+}
+`)
+}
+
+}
+
+}
+
+}
+
+}
+catch(err){
+console.error("[Price Engine] Failed to fetch live Forex rates:",err)
+}
+try{
+const aaplRes=await fetchWithTimeout("https://query1.finance.yahoo.com/v8/finance/chart/AAPL",{
+headers:{
+"User-Agent":"Mozilla/5.0"
+}
+
+}
+);
+if(aaplRes.ok){
+const aaplData=await aaplRes.json();
+const val=aaplData?.chart?.result?.[0]?.meta?.regularMarketPrice;
+if(val&&!isNaN(val)&&val>50){
+BASE_PRICES.AAPL=Number(val.toFixed(2));
+syncedAny=true;
+console.log(`[Price Engine] Live AAPL matched: $${
+BASE_PRICES.AAPL
+}
+`)
+}
+
+}
+
+}
+catch(err){
+console.error("[Price Engine] Failed to fetch live AAPL price:",err)
+}
+try{
+const spxRes=await fetchWithTimeout("https://query1.finance.yahoo.com/v8/finance/chart/%5EGSPC",{
+headers:{
+"User-Agent":"Mozilla/5.0"
+}
+
+}
+);
+if(spxRes.ok){
+const spxData=await spxRes.json();
+const val=spxData?.chart?.result?.[0]?.meta?.regularMarketPrice;
+if(val&&!isNaN(val)&&val>50){
+BASE_PRICES.SPX500=Number(val.toFixed(2));
+syncedAny=true;
+console.log(`[Price Engine] Live SPX500 matched: $${
+BASE_PRICES.SPX500
+}
+`)
+}
+
+}
+
+}
+catch(err){
+console.error("[Price Engine] Failed to fetch live SPX500 price:",err)
+}
+if(syncedAny){
+console.log("[Price Engine] Regenerating core simulated historical series on matched baseline pricing...");
+SYMBOLS.forEach(sym=>{
+const symbolHistory=generateHistory(sym,BASE_PRICES[sym]);
+const currentPrice=symbolHistory[symbolHistory.length-1].close;
+const startPrice=symbolHistory[0].close;
+const dailyChange=(currentPrice-startPrice)/startPrice*100;
+state.marketData[sym]={
+symbol:sym,fullName:state.marketData[sym]?.fullName||getSymbolFullName(sym),currentPrice,dailyChange:Number(dailyChange.toFixed(2)),history:symbolHistory
+}
+
+}
+);
+if(!stateFileExistedAtBoot){
+state.trades.forEach(trade=>{
+const base=BASE_PRICES[trade.symbol];
+if(!base)return;
+if(trade.id==="trd-open-1"){
+trade.entryPrice=Number((base*.9998).toFixed(2));
+trade.currentPrice=Number(base.toFixed(2));
+trade.stopLoss=Number((base*.98).toFixed(2));
+trade.takeProfit=Number((base*1.05).toFixed(2))
+}
+else if(trade.id==="trd-open-2"){
+trade.entryPrice=Number((base*.996).toFixed(2));
+trade.currentPrice=Number(base.toFixed(2));
+trade.stopLoss=Number((base*.97).toFixed(2));
+trade.takeProfit=Number((base*1.05).toFixed(2))
+}
+
+}
+);
+state.signals.forEach(sig=>{
+const base=BASE_PRICES[sig.symbol];
+if(!base)return;
+if(sig.id==="sig-1"){
+sig.price=Number((base*.9998).toFixed(2));
+sig.entryPrice=sig.price;
+sig.stopLoss=Number((base*.98).toFixed(2));
+sig.takeProfit=Number((base*1.05).toFixed(2))
+}
+else if(sig.id==="sig-3"){
+sig.price=Number((base*.996).toFixed(2));
+sig.entryPrice=sig.price;
+sig.stopLoss=Number((base*.97).toFixed(2));
+sig.takeProfit=Number((base*1.05).toFixed(2))
+}
+
+}
+);
+state.telegramAlerts.forEach(tg=>{
+if(tg.id==="tg-1"){
+tg.message=`\u{
+1F514
+}
+ Telegram Feed [Quant AI Channel]
+
+\u{
+1F4E5
+}
+ ENTRY'S DETECTED: [BUY] - BTCUSD
+\u{
+1F4C8
+}
+ entryPrice: $${
+BASE_PRICES.BTCUSD.toLocaleString(void 0,{
+minimumFractionDigits:2,maximumFractionDigits:2
+}
+)
+}
+
+\u{
+1F6E1
+}
+\uFE0F Stop Loss: $${
+(BASE_PRICES.BTCUSD*.98).toLocaleString(void 0,{
+minimumFractionDigits:2,maximumFractionDigits:2
+}
+)
+}
+
+\u{
+1F3AF
+}
+ Take Profit: $${
+(BASE_PRICES.BTCUSD*1.05).toLocaleString(void 0,{
+minimumFractionDigits:2,maximumFractionDigits:2
+}
+)
+}
+
+\u26A1 Strategy: EMA_CROSS (Active Cross)
+\u23F0 Timeframe: H1 (TRENDING_BULL)`
+}
+
+}
+)
+}
+
+}
+
+}
+__name(syncLivePrices,"syncLivePrices");
+app.get("/api/ml/telemetry",(req,res)=>{
+const closed=state.trades.filter(t=>t.status==="CLOSED");
+const winCount=closed.filter(t=>t.pnl>0).length;
+const winRate=closed.length>0?Math.round(winCount/closed.length*100):74;
+const pairStats={
+
+}
+;
+closed.forEach(t=>{
+if(!pairStats[t.symbol])pairStats[t.symbol]={
+wins:0,total:0,pnl:0
+}
+;
+pairStats[t.symbol].total+=1;
+pairStats[t.symbol].pnl+=t.pnl||0;
+if(t.pnl>0)pairStats[t.symbol].wins+=1
+}
+);
+const underperformingAssets=Object.keys(pairStats).filter(k=>{
+const stats=pairStats[k];
+const rate=stats.wins/stats.total*100;
+return rate<50||stats.pnl<0
+}
+).map(k=>`${
+k
+}
+ (Win Rate ${
+(pairStats[k].wins/pairStats[k].total*100).toFixed(0)
+}
+%, Net PnL $${
+pairStats[k].pnl.toFixed(0)
+}
+)`);
+const lastTrades=closed.slice(-5);
+const regimes=lastTrades.map(t=>t.regime).filter(Boolean);
+const detectedRegime=regimes.length>0?regimes[0]:"TRENDING_BULL";
+const rollbackShieldActive=state.mlRollbackPoints&&state.mlRollbackPoints.length>0;
+res.json({
+success:true,telemetry:{
+marketRegime:detectedRegime,regimeConfidence:89,winRateCurrentRegime:winRate,activeShielding:rollbackShieldActive?"ACTIVE":"SHIELD_READY",totalRollbacksStored:state.mlRollbackPoints?state.mlRollbackPoints.length:0,underperformingLogic:underperformingAssets.length>0?underperformingAssets:["None detected (All assets performing optimally)"],forwardValidationScore:Math.min(96,Math.max(72,80+(winRate-50)*.3)),lastOptimizationRun:state.mlHistory&&state.mlHistory.length>0?state.mlHistory[0].timestamp:new Date().toISOString()
+}
+
+}
+)
+}
+);
+app.post("/api/ml/run-optimization",async(req,res)=>{
+const closedTrades=state.trades.filter(t=>t.status==="CLOSED").slice(-20);
+const openTrades=state.trades.filter(t=>t.status==="OPEN");
+let recommendations=[];
+let detectedRegime="TRENDING_BULL";
+let explanation="Pattern miner has successfully calculated performance factors across current open positions, historical trades, and regime signals.";
+const ai=getGeminiClient();
+if(ai){
+try{
+const systemPrompt=`You are an expert quantitative analyst and machine learning trading engineer. Your task is to analyze historical trade logs, asset current details, and parameters of the trading system to identify underperforming strategy logic under similar market conditions. You must always recommend changes to exit filters, risk management guidelines, positions sizing, or indicators (which correspond to fields inside AppConfig like 'itmeThreshold', 'lotSize', 'riskPerTrade', 'itmeWeightVolatility', 'itmeWeightStructure', 'itmeWeightMomentum', 'itmeWeightVolume', etc.).

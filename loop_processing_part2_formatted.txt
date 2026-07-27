@@ -1,0 +1,62 @@
+artsWith("XAU")&&!sym.startsWith("BTC")?4:2))
+}
+data.currentPrice=newPrice;
+const history=data.history;
+if(shouldRollBar&&history.length>0){
+const lastBar=history[history.length-1];
+const newTime=new Date().toISOString();
+const newBar={
+time:newTime,open:lastBar.close,high:lastBar.close,low:lastBar.close,close:lastBar.close,volume:0
+}
+;
+history.push(newBar);
+if(history.length>60){
+history.shift()
+}
+
+}
+const latestBar=history[history.length-1];
+latestBar.close=newPrice;
+if(newPrice>latestBar.high)latestBar.high=newPrice;
+if(newPrice<latestBar.low)latestBar.low=newPrice;
+latestBar.volume=(latestBar.volume||0)+Math.floor(Math.random()*300+50);
+computeIndicators(sym,history);
+const startPrice=history[0].close;
+data.dailyChange=Number(((newPrice-startPrice)/startPrice*100).toFixed(2))
+}
+);
+evaluateRetestCandidates(shouldRollBar);
+const tradesToCloseAndReverse=[];
+state.trades.forEach(trade=>{
+if(trade.status==="OPEN"){
+const isLiveMt5=trade.strategyId==="MT5_LIVE"||trade.isMt5Synced===true;
+const marketAsset=state.marketData[trade.symbol];
+if(!marketAsset)return;
+const livePrice=isLiveMt5&&trade.currentPrice?trade.currentPrice:marketAsset.currentPrice;
+if(!isLiveMt5){
+trade.currentPrice=livePrice
+}
+const{
+pipMultiplier,dollarMultiplier
+}
+=getSymbolMultipliers(trade.symbol);
+let profitPoints=0;
+if(trade.type==="BUY"){
+profitPoints=(livePrice-trade.entryPrice)*pipMultiplier
+}
+else{
+profitPoints=(trade.entryPrice-livePrice)*pipMultiplier
+}
+if(!trade.originalSize){
+trade.originalSize=trade.size
+}
+if(trade.realizedPartialPnl===void 0){
+trade.realizedPartialPnl=0
+}
+let floatingPnL=profitPoints*trade.size*dollarMultiplier;
+if(isNaN(floatingPnL)||!isFinite(floatingPnL)||Math.abs(floatingPnL)>5e7){
+floatingPnL=0
+}
+if(!isLiveMt5||trade.pnl===void 0){
+trade.pnl=Number(((trade.realizedPartialPnl||0)+floatingPnL).toFixed(2))
+}

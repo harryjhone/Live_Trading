@@ -1,0 +1,1386 @@
+      
+}
+if(isNaN(trade.pnl)
+  || !isFinite(trade.pnl)
+  || Math.abs(trade.pnl)>5e7){
+trade.pnl=0
+}
+if(trade.pnl>trade.mfe){
+trade.mfe=trade.pnl
+}
+if(trade.pnl<trade.mae){
+trade.mae=trade.pnl
+}
+if(state.config.exitEngineMode==="DYNAMIC_TRAIL"){
+const decimals2=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?4:2;
+const initialSl2=trade.baseStopLoss
+  || trade.stopLoss
+  || (trade.type==="BUY"?trade.entryPrice*.985:trade.entryPrice*1.015);
+if(!trade.baseStopLoss){
+trade.baseStopLoss=initialSl2
+}
+const riskDistance=Math.abs(trade.entryPrice-initialSl2)
+  || trade.entryPrice*.01;
+const tp1Mult=Number(state.config.dynamicTrailTp1RR??2);
+const tp2Mult=Number(state.config.dynamicTrailTp2RR??3);
+const tp3Mult=Number(state.config.dynamicTrailTp3RR??4);
+const capitalLockPct=Number(state.config.dynamicTrailCapitalLock??2)/100;
+const tp1Price=trade.type==="BUY"?trade.entryPrice+tp1Mult*riskDistance:trade.entryPrice-tp1Mult*riskDistance;
+const tp2Price=trade.type==="BUY"?trade.entryPrice+tp2Mult*riskDistance:trade.entryPrice-tp2Mult*riskDistance;
+const tp3Price=trade.type==="BUY"?trade.entryPrice+tp3Mult*riskDistance:trade.entryPrice-tp3Mult*riskDistance;
+let slUpdated2=false;
+let tpActionTriggered2="";
+const tAny=trade;
+if(tAny.dtTp1Reached===void 0)tAny.dtTp1Reached=false;
+if(tAny.dtTp2Reached===void 0)tAny.dtTp2Reached=false;
+if(tAny.dtTp3Reached===void 0)tAny.dtTp3Reached=false;
+const isBuy2=trade.type==="BUY";
+if(!tAny.dtTp3Reached
+  && (isBuy2?livePrice>=tp3Price:livePrice<=tp3Price)){
+tAny.dtTp1Reached=true;
+tAny.dtTp2Reached=true;
+tAny.dtTp3Reached=true;
+const targetSl2=Number(tp2Price.toFixed(decimals2));
+trade.stopLoss=targetSl2;
+slUpdated2=true;
+tpActionTriggered2=`Dynamic Trail: TP3 reached, SL trailed to TP2 price level`;
+state.mt5Config.logs.unshift(`[Dynamic Trail] Trade #${
+trade.id
+}
+ reached TP3 (1:${
+tp3Mult
+}
+ RR) @ $${
+livePrice
+}
+. Trailed SL to TP2 level: $${
+trade.stopLoss
+}
+.`)
+}
+else if(!tAny.dtTp2Reached
+  && (isBuy2?livePrice>=tp2Price:livePrice<=tp2Price)){
+tAny.dtTp1Reached=true;
+tAny.dtTp2Reached=true;
+trade.stopLoss=trade.entryPrice;
+slUpdated2=true;
+tpActionTriggered2="Dynamic Trail: TP2 reached, SL moved to Break-Even";
+state.mt5Config.logs.unshift(`[Dynamic Trail] Trade #${
+trade.id
+}
+ reached TP2 (1:${
+tp2Mult
+}
+ RR) @ $${
+livePrice
+}
+. Moved SL to Break-Even: $${
+trade.stopLoss
+}
+.`)
+}
+else if(!tAny.dtTp1Reached
+  && (isBuy2?livePrice>=tp1Price:livePrice<=tp1Price)){
+tAny.dtTp1Reached=true;
+const balanceVal=state.config.balance
+  || 1e4;
+const targetProfit=balanceVal*capitalLockPct;
+const priceOffset=targetProfit/(pipMultiplier*trade.size*dollarMultiplier);
+const lockCapitalSl=isBuy2?trade.entryPrice+priceOffset:trade.entryPrice-priceOffset;
+trade.stopLoss=Number(lockCapitalSl.toFixed(decimals2));
+slUpdated2=true;
+tpActionTriggered2=`Dynamic Trail: TP1 reached, SL locked at +${
+capitalLockPct*100
+}
+% account capital`;
+state.mt5Config.logs.unshift(`[Dynamic Trail] Trade #${
+trade.id
+}
+ reached TP1 (1:${
+tp1Mult
+}
+ RR) @ $${
+livePrice
+}
+. Trailed SL to lock ${
+capitalLockPct*100
+}
+% capital profit ($${
+trade.stopLoss
+}
+).`)
+}
+if(slUpdated2){
+trade.exitActionTriggered=tpActionTriggered2;
+propagateTerminalModify(trade)
+}
+if(trade.stopLoss>0){
+const hitSl=isBuy2?livePrice<=trade.stopLoss:livePrice>=trade.stopLoss;
+if(hitSl){
+closeTrade(trade.id,"SL",livePrice);
+state.mt5Config.logs.unshift(`[Dynamic Trail SL] Trailed Stop Loss triggered for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ ${
+trade.type
+}
+) @ $${
+livePrice
+}
+. Trailed SL was $${
+trade.stopLoss
+}
+. Position closed.`)
+}
+
+}
+return
+}
+if(state.config.virtualSlTpEnabled===true){
+if(trade.stopLoss
+  && trade.stopLoss>0){
+const hitSl=trade.type==="BUY"?livePrice<=trade.stopLoss:livePrice>=trade.stopLoss;
+if(hitSl){
+closeTrade(trade.id,"SL",livePrice);
+state.mt5Config.logs.unshift(`[Virtual Stop Loss Shield] Virtual SL triggered for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ ${
+trade.type
+}
+) @ $${
+livePrice
+}
+. (Virtual SL: $${
+trade.stopLoss
+}
+)`);
+return
+}
+
+}
+if(trade.takeProfit
+  && trade.takeProfit>0){
+const hitTp=trade.type==="BUY"?livePrice>=trade.takeProfit:livePrice<=trade.takeProfit;
+if(hitTp){
+closeTrade(trade.id,"TP",livePrice);
+state.mt5Config.logs.unshift(`[Virtual Take Profit Shield] Virtual TP triggered for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ ${
+trade.type
+}
+) @ $${
+livePrice
+}
+. (Virtual TP: $${
+trade.takeProfit
+}
+)`);
+return
+}
+
+}
+
+}
+const itmeResult=evaluateITMEforTrade(trade);
+trade.itmeScore=itmeResult.score;
+trade.itmeScoresBreakdown=itmeResult.breakdown;
+trade.itmeAnalysisDetails=itmeResult.details;
+const isBuy=trade.type==="BUY";
+const decimals=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?4:2;
+const exitResult=evaluateDynamicExitEngine(trade);
+trade.exitScore=exitResult.exitScore;
+trade.exitScoresBreakdown=exitResult.breakdown;
+trade.exitAnalysisDetails=exitResult.details;
+trade.aiProbTp1=exitResult.probabilities.tp1;
+trade.aiProbTp2=exitResult.probabilities.tp2;
+trade.aiProbTp3=exitResult.probabilities.tp3;
+trade.aiProbTp4=exitResult.probabilities.tp4;
+trade.aiProbContinuation=exitResult.probabilities.continuation;
+trade.aiProbReversal=exitResult.probabilities.reversal;
+trade.patternMatchSimilarity=exitResult.patternMatchingStats.similarity;
+trade.patternMatchSampleCount=exitResult.patternMatchingStats.analogs;
+const initialSl=trade.baseStopLoss
+  || trade.stopLoss
+  || (isBuy?trade.entryPrice*.985:trade.entryPrice*1.015);
+let rSize=Math.abs(trade.entryPrice-initialSl);
+if(rSize<=0){
+rSize=trade.entryPrice*.01
+}
+const diffPrice=isBuy?livePrice-trade.entryPrice:trade.entryPrice-livePrice;
+const currentR=Number((diffPrice/rSize).toFixed(2));
+if(trade.maxRReached===void 0
+  || currentR>trade.maxRReached){
+trade.maxRReached=Math.max(0,currentR)
+}
+let targetSl=null;
+let profitLockActionLabel="";
+if(state.config.itmeFiveCandleRuleEnabled
+  && trade.maxRReached>=1){
+if(targetSl===null
+  || (isBuy?targetSl<trade.entryPrice:targetSl>trade.entryPrice)){
+targetSl=trade.entryPrice;
+profitLockActionLabel="5-Candle Breakeven Lock (+1R reached)"
+}
+
+}
+if(targetSl!==null){
+targetSl=Number(targetSl.toFixed(decimals));
+if(targetSl<=0){
+targetSl=isBuy?trade.entryPrice*.985:trade.entryPrice*1.015
+}
+const currentSl=trade.stopLoss;
+const isBetterSl=isBuy?targetSl>currentSl:currentSl===0
+  || targetSl<currentSl
+  || currentSl===void 0;
+if(isBetterSl){
+trade.stopLoss=targetSl;
+trade.profitLockEngineAction=profitLockActionLabel;
+trade.exitActionTriggered=profitLockActionLabel;
+state.mt5Config.logs.unshift(`[Dynamic Profit Lock] Trade #${
+trade.id
+}
+ reached +${
+trade.maxRReached.toFixed(1)
+}
+R. Adjusted SL to ${
+targetSl
+}
+ (${
+profitLockActionLabel
+}
+).`);
+propagateTerminalModify(trade)
+}
+
+}
+let tradeWasClosedByExitEngine=false;
+const probReversal=trade.aiProbReversal
+  || 0;
+const probContinuation=trade.aiProbContinuation
+  || 100;
+const origSize=trade.originalSize
+  || trade.size;
+const evHold=probContinuation/100*(currentR+1.5);
+const evSecure=currentR;
+const isEvHoldLess=currentR>0
+  && evHold<evSecure;
+const isProfitPreservationTriggered=currentR>=.5
+  && (probReversal>60
+  || trade.aiProbTp1!==void 0
+  && trade.aiProbTp1<30
+  || trade.exitScore!==void 0
+  && trade.exitScore>80);
+const isQuantumCapitalProtectTriggered=currentR<0
+  && (trade.exitScore!==void 0
+  && trade.exitScore>=75
+  || probReversal>=70);
+if(currentR>0
+  && (isProfitPreservationTriggered
+  || isEvHoldLess)){
+let targetPct=0;
+if(probReversal>=80
+  || trade.exitScore!==void 0
+  && trade.exitScore>85){
+targetPct=100
+}
+else if(probReversal>=65
+  || trade.exitScore!==void 0
+  && trade.exitScore>=75){
+targetPct=75
+}
+else if(probReversal>=55
+  || trade.exitScore!==void 0
+  && trade.exitScore>=60){
+targetPct=50
+}
+else if(probReversal>=50
+  || trade.exitScore!==void 0
+  && trade.exitScore>=40){
+targetPct=25
+}
+if(targetPct===100){
+closeTrade(trade.id,"TP",livePrice);
+trade.exitActionTriggered=isEvHoldLess?`Intelligent Profit-First Full Take Profit (EV Hold ${
+evHold.toFixed(2)
+}
+ < Secure ${
+evSecure.toFixed(2)
+}
+)`:`Profit Preservation AI Full Close (Reversal: ${
+probReversal
+}
+%)`;
+state.mt5Config.logs.unshift(`[Profit Preservation AI] Full Liquidation triggered on Trade #${
+trade.id
+}
+ @ $${
+livePrice
+}
+. Reason: Reversal hazard is ${
+probReversal
+}
+%.`);
+tradeWasClosedByExitEngine=true
+}
+else if(targetPct>0){
+if(!trade.graduatedExits){
+trade.graduatedExits=[]
+}
+if(!trade.graduatedExits.includes(targetPct)){
+const totalTargetCloseSize=Number((origSize*(targetPct/100)).toFixed(4));
+const currentlyClosedSize=Number((origSize-trade.size).toFixed(4));
+const sizeToClose=Number((totalTargetCloseSize-currentlyClosedSize).toFixed(4));
+if(sizeToClose>.001
+  && trade.size>=sizeToClose){
+const pipMult=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?1e4:100;
+const pointsAtExit=isBuy?(livePrice-trade.entryPrice)*pipMult:(trade.entryPrice-livePrice)*pipMult;
+const closedProfit=pointsAtExit*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+trade.graduatedExits.push(targetPct);
+const triggerReasonStr=isEvHoldLess?`EV Hold ${
+evHold.toFixed(1)
+}
+ < EV Secure ${
+evSecure.toFixed(1)
+}
+`:`Reversal: ${
+probReversal
+}
+%`;
+trade.exitActionTriggered=`Graduated Exit ${
+targetPct
+}
+% (${
+triggerReasonStr
+}
+)`;
+state.mt5Config.logs.unshift(`[Profit Preservation AI] Executed ${
+targetPct
+}
+% Graduated Close on Trade #${
+trade.id
+}
+ (-${
+sizeToClose
+}
+ Lots) @ $${
+livePrice
+}
+ (Value: +$${
+closedProfit.toFixed(2)
+}
+ secured).`);
+let adjustedSlVal=null;
+let adjLabel="";
+if(targetPct===75){
+adjustedSlVal=isBuy?trade.entryPrice+1.5*rSize:trade.entryPrice-1.5*rSize;
+adjLabel="Lock +1.5R"
+}
+else if(targetPct===50){
+adjustedSlVal=isBuy?trade.entryPrice+1*rSize:trade.entryPrice-1*rSize;
+adjLabel="Lock +1.0R"
+}
+else if(targetPct===25){
+adjustedSlVal=trade.entryPrice;
+adjLabel="Breakeven Guaranteed"
+}
+if(adjustedSlVal!==null){
+adjustedSlVal=Number(adjustedSlVal.toFixed(decimals));
+if(adjustedSlVal<=0){
+adjustedSlVal=isBuy?trade.entryPrice*.985:trade.entryPrice*1.015
+}
+const oldSl=trade.stopLoss;
+const isBetterSl=isBuy?adjustedSlVal>oldSl:oldSl===0
+  || adjustedSlVal<oldSl
+  || oldSl===void 0;
+if(isBetterSl){
+trade.stopLoss=adjustedSlVal;
+trade.profitLockEngineAction=adjLabel
+}
+
+}
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:trade.type,size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Profit Preservation AI Graduated Exit: Closed ${
+targetPct
+}
+% of original size`
+}
+)
+}
+propagateTerminalModify(trade)
+}
+
+}
+
+}
+
+}
+else if(isQuantumCapitalProtectTriggered){
+closeTrade(trade.id,"SL",livePrice);
+trade.exitActionTriggered=`Quantum Capital Protect (Exit Score: ${
+trade.exitScore
+}
+%, Reversal: ${
+probReversal
+}
+%)`;
+state.mt5Config.logs.unshift(`[Quantum Capital Protect] Emergency full exit triggered on Trade #${
+trade.id
+}
+ @ $${
+livePrice
+}
+. Cut loss early at ${
+currentR
+}
+R. Reason: Critical reversal risk.`);
+tradeWasClosedByExitEngine=true
+}
+if(!tradeWasClosedByExitEngine){
+if(trade.exitScore>85){
+closeTrade(trade.id,"TP",livePrice);
+trade.exitActionTriggered=`Full Exit (Exit Score: ${
+trade.exitScore
+}
+%)`;
+state.mt5Config.logs.unshift(`[Exit Engine Trigger] Critical Exit Confluence (${
+trade.exitScore
+}
+% > 85%). Closed remaining position for Trade #${
+trade.id
+}
+ @ $${
+livePrice
+}
+.`);
+tradeWasClosedByExitEngine=true
+}
+else if(trade.exitScore>=75
+  && trade.exitScore<=85){
+if(!trade.graduatedExits
+  || !trade.graduatedExits.includes(50)){
+const sizeToClose=Number(Math.min(trade.size,origSize*.5).toFixed(4));
+if(sizeToClose>1e-4){
+const pipMult=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?1e4:100;
+const pointsAtExit=isBuy?(livePrice-trade.entryPrice)*pipMult:(trade.entryPrice-livePrice)*pipMult;
+const closedProfit=pointsAtExit*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+if(!trade.graduatedExits)trade.graduatedExits=[];
+trade.graduatedExits.push(50);
+trade.exitActionTriggered=`Partial Close 50% (Exit Score: ${
+trade.exitScore
+}
+%)`;
+state.mt5Config.logs.unshift(`[Exit Engine Trigger] High Exit Confluence (${
+trade.exitScore
+}
+%). Executed 50% Partial Close for Trade #${
+trade.id
+}
+ (-${
+sizeToClose
+}
+ Lots) @ $${
+livePrice
+}
+ (+$${
+closedProfit.toFixed(2)
+}
+ secured).`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:trade.type,size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Exit Engine Partial Close: size trimmed due to high exit score (${
+trade.exitScore
+}
+%)`
+}
+)
+}
+propagateTerminalModify(trade)
+}
+
+}
+
+}
+else if(trade.exitScore>=60
+  && trade.exitScore<75){
+const currentSl=trade.stopLoss
+  || initialSl;
+const slDist=Math.abs(livePrice-currentSl);
+const tightenedSlRaw=isBuy?livePrice-slDist*.5:livePrice+slDist*.5;
+const tightenedSl=Number(tightenedSlRaw.toFixed(decimals));
+const isBetterSl=isBuy?tightenedSl>currentSl:currentSl===0
+  || tightenedSl<currentSl
+  || currentSl===void 0;
+if(isBetterSl){
+trade.stopLoss=tightenedSl;
+trade.exitActionTriggered=`Tightened Stop (Exit Score: ${
+trade.exitScore
+}
+%)`;
+state.mt5Config.logs.unshift(`[Exit Engine Trigger] Elevated Exit Confluence (${
+trade.exitScore
+}
+%). Tightened Stop Loss on Trade #${
+trade.id
+}
+ to ${
+tightenedSl
+}
+ to defend accrued return.`);
+propagateTerminalModify(trade)
+}
+
+}
+else if(trade.exitScore>=40
+  && trade.exitScore<60){
+if(!trade.exitActionTriggered
+  || trade.exitActionTriggered==="Hold"){
+trade.exitActionTriggered="Monitor Closely"
+}
+
+}
+else{
+if(!trade.exitActionTriggered){
+trade.exitActionTriggered="Hold"
+}
+
+}
+
+}
+if(tradeWasClosedByExitEngine){
+return
+}
+calculateAndApplyCombinationSLTP(trade);
+if(!trade.tp1
+  || trade.tp1<=0){
+trade.tp1=Number((isBuy?trade.entryPrice+1.5*rSize:trade.entryPrice-1.5*rSize).toFixed(decimals))
+}
+if(!trade.tp2
+  || trade.tp2<=0){
+trade.tp2=Number((isBuy?trade.entryPrice+2.5*rSize:trade.entryPrice-2.5*rSize).toFixed(decimals))
+}
+if(!trade.tp3
+  || trade.tp3<=0){
+trade.tp3=Number((isBuy?trade.entryPrice+4*rSize:trade.entryPrice-4*rSize).toFixed(decimals))
+}
+if(!trade.tp4
+  || trade.tp4<=0){
+trade.tp4=Number((isBuy?trade.entryPrice+5.5*rSize:trade.entryPrice-5.5*rSize).toFixed(decimals));
+trade.takeProfit=trade.tp4
+}
+if(trade.highestTpReached===void 0){
+trade.highestTpReached=0
+}
+let slUpdated=false;
+let tpActionTriggered="";
+if(isBuy){
+if(livePrice>=trade.tp4
+  && trade.highestTpReached<4){
+trade.highestTpReached=4;
+closeTrade(trade.id,"TP",livePrice);
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP4 HIT (Full Target) for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ BUY) @ $${
+livePrice
+}
+. Dynamic TP4: $${
+trade.tp4
+}
+. Position closed successfully.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"BUY",size:trade.size,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP4 HIT: Full close @ $${
+livePrice
+}
+`
+}
+)
+}
+return
+}
+else if(livePrice>=trade.tp3
+  && trade.highestTpReached<3){
+const sizeToClose=Number(Math.min(trade.size,origSize*.2).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.tp3-trade.entryPrice)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP3 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ BUY) @ $${
+livePrice
+}
+. Secured 20% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"BUY",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP3 HIT: Partial close 20% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=3;
+trade.stopLoss=trade.tp2;
+slUpdated=true;
+tpActionTriggered="TP3 HIT: Trailed SL to TP2"
+}
+else if(livePrice>=trade.tp2
+  && trade.highestTpReached<2){
+const sizeToClose=Number(Math.min(trade.size,origSize*.3).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.tp2-trade.entryPrice)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP2 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ BUY) @ $${
+livePrice
+}
+. Secured 30% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"BUY",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP2 HIT: Partial close 30% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=2;
+trade.stopLoss=trade.tp1;
+slUpdated=true;
+tpActionTriggered="TP2 HIT: Trailed SL to TP1"
+}
+else if(livePrice>=trade.tp1
+  && trade.highestTpReached<1){
+const sizeToClose=Number(Math.min(trade.size,origSize*.3).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.tp1-trade.entryPrice)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP1 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ BUY) @ $${
+livePrice
+}
+. Secured 30% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"BUY",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP1 HIT: Partial close 30% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=1;
+trade.stopLoss=trade.entryPrice;
+slUpdated=true;
+tpActionTriggered="TP1 HIT: Trailed SL to Breakeven"
+}
+if(trade.stopLoss>0
+  && livePrice<=trade.stopLoss){
+closeTrade(trade.id,"SL",livePrice);
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic SL] \u{
+1F6D1
+}
+ Trailed Stop Loss triggered for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ BUY) @ $${
+livePrice
+}
+. Trailed SL was $${
+trade.stopLoss
+}
+. Position liquidated.`);
+return
+}
+
+}
+else{
+if(livePrice<=trade.tp4
+  && trade.highestTpReached<4){
+trade.highestTpReached=4;
+closeTrade(trade.id,"TP",livePrice);
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP4 HIT (Full Target) for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ SELL) @ $${
+livePrice
+}
+. Dynamic TP4: $${
+trade.tp4
+}
+. Position closed successfully.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"SELL",size:trade.size,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP4 HIT: Full close @ $${
+livePrice
+}
+`
+}
+)
+}
+return
+}
+else if(livePrice<=trade.tp3
+  && trade.highestTpReached<3){
+const sizeToClose=Number(Math.min(trade.size,origSize*.2).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.entryPrice-trade.tp3)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP3 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ SELL) @ $${
+livePrice
+}
+. Secured 20% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"SELL",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP3 HIT: Partial close 20% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=3;
+trade.stopLoss=trade.tp2;
+slUpdated=true;
+tpActionTriggered="TP3 HIT: Trailed SL to TP2"
+}
+else if(livePrice<=trade.tp2
+  && trade.highestTpReached<2){
+const sizeToClose=Number(Math.min(trade.size,origSize*.3).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.entryPrice-trade.tp2)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP2 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ SELL) @ $${
+livePrice
+}
+. Secured 30% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"SELL",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP2 HIT: Partial close 30% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=2;
+trade.stopLoss=trade.tp1;
+slUpdated=true;
+tpActionTriggered="TP2 HIT: Trailed SL to TP1"
+}
+else if(livePrice<=trade.tp1
+  && trade.highestTpReached<1){
+const sizeToClose=Number(Math.min(trade.size,origSize*.3).toFixed(4));
+if(sizeToClose>1e-4){
+const points=(trade.entryPrice-trade.tp1)*pipMultiplier;
+const closedProfit=points*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic TP] \u{
+1F3AF
+}
+ TP1 HIT for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ SELL) @ $${
+livePrice
+}
+. Secured 30% lots (${
+sizeToClose
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+.`);
+if(state.config.mt5BridgeEnabled
+  || state.config.directBrokerEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"SELL",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),ticket:trade.id,tradeId:trade.id,details:`Phase-2 TP1 HIT: Partial close 30% @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+trade.highestTpReached=1;
+trade.stopLoss=trade.entryPrice;
+slUpdated=true;
+tpActionTriggered="TP1 HIT: Trailed SL to Breakeven"
+}
+if(trade.stopLoss>0
+  && livePrice>=trade.stopLoss){
+closeTrade(trade.id,"SL",livePrice);
+state.mt5Config.logs.unshift(`[Phase-2 Dynamic SL] \u{
+1F6D1
+}
+ Trailed Stop Loss triggered for Trade #${
+trade.id
+}
+ (${
+trade.symbol
+}
+ SELL) @ $${
+livePrice
+}
+. Trailed SL was $${
+trade.stopLoss
+}
+. Position liquidated.`);
+return
+}
+
+}
+if(slUpdated){
+trade.exitActionTriggered=tpActionTriggered;
+propagateTerminalModify(trade)
+}
+let timeframeMin=15;
+const tf=trade.timeframe
+  || "M15";
+if(tf==="M1")timeframeMin=1;
+else if(tf==="M5")timeframeMin=5;
+else if(tf==="M15")timeframeMin=15;
+else if(tf==="H1")timeframeMin=60;
+else if(tf==="H4")timeframeMin=240;
+else if(tf==="D1")timeframeMin=1440;
+const minHoldMs=(state.config.itmeMinBarsHold
+  || 2)*timeframeMin*60*1e3;
+const elapsedMs=Date.now()-new Date(trade.openTime).getTime();
+const isHoldDurationSatisfied=elapsedMs>=minHoldMs;
+if(state.config.itmeEnabled
+  && isHoldDurationSatisfied){
+if(itmeResult.score>=(state.config.itmeThreshold
+  || 75)){
+tradesToCloseAndReverse.push({
+id:trade.id,reverse:state.config.itmeAllowReversals?trade.type==="BUY"?"SELL":"BUY":void 0,score:itmeResult.score
+}
+);
+return
+}
+
+}
+if(state.config.itmeFiveCandleRuleEnabled){
+const asset=state.marketData[trade.symbol];
+const history=asset?.history
+  || [];
+const lastBar=history[history.length-1];
+const barsElapsed=lastBar
+  && trade.openTime?history.filter(b=>new Date(b.time).getTime()>=new Date(trade.openTime).getTime()).length:1;
+trade.barsElapsed=barsElapsed;
+if(barsElapsed>=5
+  && (trade.maxRReached
+  || 0)<1){
+state.mt5Config.logs.unshift(`[5 Candle Rule Exit] Trade #${
+trade.id
+}
+ on ${
+trade.symbol
+}
+ weak setup detected (Failed to reach 1.0R in ${
+barsElapsed
+}
+ candles). Executing defensive exit.`);
+tradesToCloseAndReverse.push({
+id:trade.id,score:100
+}
+);
+return
+}
+
+}
+const scalingEnabled=state.config.itmeScalingEnabled!==false;
+if(scalingEnabled){
+const origSize2=trade.originalSize
+  || trade.size;
+if(!trade.itmeScaleEvents){
+trade.itmeScaleEvents=[]
+}
+if(!trade.itmeScaledOutStatus){
+trade.itmeScaledOutStatus={
+
+}
+
+}
+if(trade.itmeScalingInCount===void 0){
+trade.itmeScalingInCount=0
+}
+const scaleInThreshold=state.config.itmeScaleInThreshold??20;
+const scaleInPercent=state.config.itmeScaleInPercent??25;
+const maxScaleInCount=state.config.itmeMaxScaleInCount??3;
+const scaleInFraction=scaleInPercent/100;
+if(itmeResult.score<=scaleInThreshold
+  && trade.pnl>5){
+const barCountElapsed=Math.floor(elapsedMs/(timeframeMin*60*1e3));
+const lastScaleInIndex=trade.itmeScaleEvents.map(e=>e.type).lastIndexOf("SCALE_IN");
+const okToScaleIn=trade.itmeScalingInCount<maxScaleInCount
+  && (lastScaleInIndex===-1
+  || barCountElapsed-trade.itmeScalingInCount*4>3);
+if(okToScaleIn){
+const additionSize=Number((origSize2*scaleInFraction).toFixed(4));
+if(additionSize>1e-4){
+const currentSize=trade.size;
+const oldEntry=trade.entryPrice;
+trade.entryPrice=Number(((oldEntry*currentSize+livePrice*additionSize)/(currentSize+additionSize)).toFixed(5));
+trade.size=Number((currentSize+additionSize).toFixed(4));
+trade.itmeScalingInCount+=1;
+const reasonMsg=`Scale-In: Strong conviction confirmed. Anti-thesis score at ${
+itmeResult.score
+}
+%. Added +${
+additionSize
+}
+ units. Average entry price updated: $${
+oldEntry.toFixed(2)
+}
+ \u2794 $${
+trade.entryPrice.toFixed(2)
+}
+.`;
+trade.itmeScaleEvents.push({
+type:"SCALE_IN",sizeChange:additionSize,sizeAfter:trade.size,price:livePrice,score:itmeResult.score,time:new Date().toISOString(),reason:reasonMsg
+}
+);
+state.mt5Config.logs.unshift(`[ITME Scale-In] Strong conviction! Added +${
+additionSize
+}
+ Lots to ${
+trade.symbol
+}
+ ${
+trade.type
+}
+ position @ $${
+livePrice
+}
+. New size: ${
+trade.size
+}
+ Lots. (Anti-Thesis Score: ${
+itmeResult.score
+}
+%)`);
+if(state.config.mt5BridgeEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"OPEN",symbol:trade.symbol,type:trade.type,size:additionSize,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),details:`Scaled-in (thesis solidified): added +${
+additionSize
+}
+ Lots @ $${
+livePrice
+}
+`,tradeId:trade.id
+}
+)
+}
+
+}
+
+}
+
+}
+const step1Threshold=state.config.itmeScaleOutThreshold1??50;
+const step2Threshold=state.config.itmeScaleOutThreshold2??62;
+const scaleOutFraction=(state.config.itmeScaleOutPercent??25)/100;
+if(itmeResult.score>=step1Threshold
+  && itmeResult.score<(state.config.itmeThreshold
+  || 75)
+  && !trade.itmeScaledOutStatus[1]){
+const sizeToClose=Number(Math.min(trade.size,origSize2*scaleOutFraction).toFixed(4));
+if(sizeToClose>1e-4){
+const pipMult=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?1e4:100;
+const pointsAtExit=trade.type==="BUY"?(livePrice-trade.entryPrice)*pipMult:(trade.entryPrice-livePrice)*pipMult;
+const closedProfit=pointsAtExit*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+trade.itmeScaledOutStatus[1]=true;
+const reasonMsg=`Scale-Out (Step 1): Anti-thesis score elevated to ${
+itmeResult.score
+}
+% (Threshold: ${
+step1Threshold
+}
+%). Trimmed ${
+sizeToClose
+}
+ Lots to limit exposure.`;
+trade.itmeScaleEvents.push({
+type:"SCALE_OUT",sizeChange:-sizeToClose,sizeAfter:trade.size,price:livePrice,score:itmeResult.score,time:new Date().toISOString(),reason:reasonMsg
+}
+);
+state.mt5Config.logs.unshift(`[ITME Scale-Out L1] Trimming risk (-${
+sizeToClose
+}
+ Lots) for ${
+trade.symbol
+}
+ ${
+trade.type
+}
+ @ $${
+livePrice
+}
+. Anti-thesis score elevated: ${
+itmeResult.score
+}
+%. Realized partial P&L: +$${
+closedProfit.toFixed(2)
+}
+`);
+if(state.config.mt5BridgeEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:trade.type,size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),details:`ITME Scale-out level 1: closed ${
+sizeToClose
+}
+ Lots @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+
+}
+if(itmeResult.score>=step2Threshold
+  && itmeResult.score<(state.config.itmeThreshold
+  || 75)
+  && !trade.itmeScaledOutStatus[2]){
+const sizeToClose=Number(Math.min(trade.size,origSize2*scaleOutFraction).toFixed(4));
+if(sizeToClose>1e-4){
+const pipMult=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?1e4:100;
+const pointsAtExit=trade.type==="BUY"?(livePrice-trade.entryPrice)*pipMult:(trade.entryPrice-livePrice)*pipMult;
+const closedProfit=pointsAtExit*sizeToClose*dollarMultiplier;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+trade.itmeScaledOutStatus[2]=true;
+const reasonMsg=`Scale-Out (Step 2): Warning signals intensified. Anti-thesis score at ${
+itmeResult.score
+}
+% (Threshold: ${
+step2Threshold
+}
+%). Trimmed additional ${
+sizeToClose
+}
+ Lots to protect equity.`;
+trade.itmeScaleEvents.push({
+type:"SCALE_OUT",sizeChange:-sizeToClose,sizeAfter:trade.size,price:livePrice,score:itmeResult.score,time:new Date().toISOString(),reason:reasonMsg
+}
+);
+state.mt5Config.logs.unshift(`[ITME Scale-Out L2] Trimming risk (-${
+sizeToClose
+}
+ Lots) for ${
+trade.symbol
+}
+ ${
+trade.type
+}
+ @ $${
+livePrice
+}
+. Anti-thesis score critical: ${
+itmeResult.score
+}
+%. Realized partial P&L: +$${
+closedProfit.toFixed(2)
+}
+`);
+if(state.config.mt5BridgeEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:trade.type,size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),details:`ITME Scale-out level 2: closed ${
+sizeToClose
+}
+ Lots @ $${
+livePrice
+}
+`
+}
+)
+}
+
+}
+
+}
+
+}
+let isEmaCrossClosed=false;
+const hasTrailingOpt=state.config.activeOptimizations?.["ins-mfe-trailing"];
+if(hasTrailingOpt
+  && trade.mfe>40
+  && trade.status==="OPEN"){
+const threshold=trade.mfe*.7;
+if(trade.pnl<threshold){
+trade.pnl=Number(threshold.toFixed(2));
+closeTrade(trade.id,"TP",trade.currentPrice);
+isEmaCrossClosed=true;
+state.mt5Config.logs.unshift(`[Optimal Trailing] ATR Lock successfully triggered for ${
+trade.symbol
+}
+. Secured: +$${
+trade.pnl.toFixed(2)
+}
+`)
+}
+
+}
+const playsMultiTpTrailing=false;
+if(playsMultiTpTrailing
+  && trade.tp1
+  && trade.tp2
+  && trade.tp3){
+const origSize2=trade.originalSize
+  || trade.size;
+const dollarMultiplier2=trade.symbol==="BTCUSD"?.01:trade.symbol==="XAUUSD"?1:10;
+if(trade.type==="BUY"){
+if(livePrice>=trade.tp3){
+trade.highestTpReached=3;
+closeTrade(trade.id,"TP",trade.tp3);
+isEmaCrossClosed=true
+}
+else if(livePrice>=trade.tp2
+  && (!trade.highestTpReached
+  || trade.highestTpReached<2)){
+const sizeToClose=Math.min(trade.size,origSize2*.25);
+if(sizeToClose>1e-4){
+const pipMult=trade.symbol.includes("USD")
+  && !trade.symbol.startsWith("XAU")
+  && !trade.symbol.startsWith("BTC")?1e4:100;
+const pointsAtTp2=(trade.tp2-trade.entryPrice)*pipMult;
+const closedProfit=pointsAtTp2*sizeToClose*dollarMultiplier2;
+trade.realizedPartialPnl=(trade.realizedPartialPnl
+  || 0)+closedProfit;
+trade.size=Number((trade.size-sizeToClose).toFixed(4));
+state.mt5Config.logs.unshift(`[Partial Close TP2] Secured 25% of position (${
+sizeToClose
+}
+ Lots) at TP2 ($${
+trade.tp2
+}
+) for +$${
+closedProfit.toFixed(2)
+}
+`);
+if(state.config.mt5BridgeEnabled){
+state.mt5Config.mirrorActivity.unshift({
+id:`act-${
+Math.random().toString(36).substr(2,9)
+}
+`,action:"CLOSE",symbol:trade.symbol,type:"BUY",size:sizeToClose,status:"PENDING",strategyId:trade.strategyId,time:new Date().toISOString(),details:`Partial close: 25% original lot size at TP2 ($${
+trade.tp2
+}
+)`
+}
+)
+}
+
+}
+trade.highestTpReached=2;
+trade.stopLoss=trade.tp2;
+propagateTerminalModify(trade);
+if(state.config.telegramAlertsEnabled){
+pushTelegramAlert({
+id:`tg-${
+Math.random().toString(36).substr(2,7)
+}
+`,time:new Date().toISOString(),type:"TP_RATCHET",message:`\u{
+1F3AF
+}
+ TP2 HIT & 25% PARTIAL CLOSE LOCKED [BUY]

@@ -1,0 +1,74 @@
+function getAssetDefaults(symbol,entryPrice,isBuy){
+const s=String(symbol||"").toUpperCase();
+const decimals=s.includes("USD")&&!s.startsWith("XAU")&&!s.startsWith("BTC")?4:2;
+let slPercent=.015;
+let tpPercent=.015;
+if(s.includes("EURUSD")||s.includes("GBPUSD")||s.includes("AUDUSD")||s.includes("USDJPY")||s.includes("USD")&&!s.startsWith("XAU")&&!s.startsWith("BTC")){
+slPercent=.0025;
+tpPercent=.003
+}
+else if(s.includes("XAU")||s.includes("GOLD")){
+slPercent=12/entryPrice;
+tpPercent=12/entryPrice
+}
+else if(s.includes("GER40")||s.includes("DE40")||s.includes("SPX")||s.includes("US500")||s.includes("NDX")||s.includes("US100")||s.includes("DJI")||s.includes("US30")){
+slPercent=.005;
+tpPercent=.005
+}
+else if(s.includes("BTC")||s.includes("ETH")){
+slPercent=.015;
+tpPercent=.015
+}
+else if(s.includes("AAPL")||s.includes("TSLA")||s.includes("NVDA")||s.includes("MSFT")){
+slPercent=.012;
+tpPercent=.012
+}
+const baseSlPercent=slPercent;
+const baseTpPercent=tpPercent;
+try{
+const history=getHistoryForTimeframe(symbol,"M15",entryPrice);
+if(history&&history.length>0){
+const latestBar=history[history.length-1];
+if(latestBar&&typeof latestBar.atr==="number"&&latestBar.atr>0){
+const currentAtr=latestBar.atr;
+const atrSlPercent=currentAtr*1.5/entryPrice;
+const atrTpPercent=currentAtr*2.5/entryPrice;
+slPercent=Math.max(baseSlPercent*.5,Math.min(baseSlPercent*1.5,atrSlPercent));
+tpPercent=Math.max(baseTpPercent*.15,Math.min(baseTpPercent*1.35,atrTpPercent));
+if(state&&state.mt5Config&&state.mt5Config.logs){
+state.mt5Config.logs.unshift(`[Asset-Adaptive TP/SL Engine] Calibrated dynamic parameters for ${
+symbol
+}
+. Market Volatility ATR: ${
+currentAtr.toFixed(decimals)
+}
+. Adapted SL: ${
+(slPercent*100).toFixed(4)
+}
+% (standard: ${
+(baseSlPercent*100).toFixed(4)
+}
+%) | Adapted TP: ${
+(tpPercent*100).toFixed(4)
+}
+% (standard: ${
+(baseTpPercent*100).toFixed(4)
+}
+%).`)
+}
+
+}
+
+}
+
+}
+catch(err){
+
+}
+const slPrice=isBuy?entryPrice*(1-slPercent):entryPrice*(1+slPercent);
+const tpPrice=isBuy?entryPrice*(1+tpPercent):entryPrice*(1-tpPercent);
+return{
+slPrice:Number(slPrice.toFixed(decimals)),tpPrice:Number(tpPrice.toFixed(decimals)),slPercent,tpPercent,decimals
+}
+
+}

@@ -1,0 +1,6 @@
+{
+  "name": "Live Trading Analysis Webapp",
+  "description": "An advanced trading dashboard with strategy-based trade implementation, MTF analysis, MT5 terminal integration, news sentiment, and Gemini-powered market insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
